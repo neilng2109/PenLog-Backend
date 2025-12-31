@@ -90,31 +90,20 @@ class Contractor(db.Model):
     __tablename__ = 'contractors'
     
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True)
-    company = db.Column(db.String(200))
-    trade = db.Column(db.String(100))
-    phone = db.Column(db.String(20))
-    
-    # Old fields for backward compatibility (can remove after migration)
+    name = db.Column(db.String(100), unique=True, nullable=False)
     contact_person = db.Column(db.String(100))
     contact_email = db.Column(db.String(120))
     contact_phone = db.Column(db.String(20))
-    
     active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    penetrations = db.relationship('Penetration', backref='contractor', lazy='dynamic')
     
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
-            'email': self.email or self.contact_email,
-            'company': self.company or self.name,  # Fallback to name if company not set
-            'trade': self.trade,
-            'phone': self.phone or self.contact_phone,
+            'contact_person': self.contact_person,
+            'contact_email': self.contact_email,
+            'contact_phone': self.contact_phone,
             'active': self.active
         }
 
