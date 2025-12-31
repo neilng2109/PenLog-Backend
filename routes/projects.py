@@ -363,6 +363,10 @@ def get_project_dashboard(project_id):
             'by_contractor': list(contractor_data.values()),
             'by_deck': list(deck_data.values())
         }), 200
+               
+    except Exception as e:  # ADD THIS
+        return jsonify({'error': str(e)}), 500  # ADD THIS
+        
         
         # Add this endpoint to routes/projects.py
 
