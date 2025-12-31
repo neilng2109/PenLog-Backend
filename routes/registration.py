@@ -7,20 +7,16 @@ from models import Project, ContractorRegistration, Contractor, User, Contractor
 registration_bp = Blueprint('registration', __name__)
 
 @registration_bp.route('/join/<invite_code>', methods=['GET'])
-def get_registration_form(invite_code):
-    """Get project details for registration (public endpoint)"""
+def get_form(invite_code):
+    """Get registration form data by project invite code"""
     try:
-        # For now, invite_code is just the project_id
-        # In production, you'd have a separate invite codes table
-        project_id = int(invite_code)
+        # Look up project by invite code
+        project = Project.query.filter_by(invite_code=invite_code).first()
         
-        project = Project.query.get(project_id)
         if not project:
-            return jsonify({'error': 'Invalid invitation code'}), 404
+            return jsonify({'error': 'Invalid or expired invite code'}), 404
         
-        if project.status != 'active':
-            return jsonify({'error': 'This drydock is no longer active'}), 400
-        
+        # Return project info for the registration form
         return jsonify({
             'project': {
                 'id': project.id,
@@ -30,60 +26,72 @@ def get_registration_form(invite_code):
             }
         }), 200
         
-    except ValueError:
-        return jsonify({'error': 'Invalid invitation code'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @registration_bp.route('/join/<invite_code>', methods=['POST'])
-def submit_registration(invite_code):
-    """Submit contractor registration (public endpoint)"""
+def submit(invite_code):
+    """Submit contractor registration using project invite code"""
     try:
-        project_id = int(invite_code)
+        # Look up project by invite code
+        project = Project.query.filter_by(invite_code=invite_code).first()
         
-        project = Project.query.get(project_id)
         if not project:
-            return jsonify({'error': 'Invalid invitation code'}), 404
-        
-        if project.status != 'active':
-            return jsonify({'error': 'This drydock is no longer active'}), 400
+            return jsonify({'error': 'Invalid or expired invite code'}), 404
         
         data = request.get_json()
         
         # Validate required fields
-        required_fields = ['company_name', 'contact_person', 'contact_email']
+        required_fields = ['name', 'email', 'company', 'trade']
         if not all(field in data for field in required_fields):
             return jsonify({'error': 'Missing required fields'}), 400
         
-        # Check if already registered
-        existing = ContractorRegistration.query.filter_by(
-            project_id=project_id,
-            contact_email=data['contact_email'],
-            status='pending'
-        ).first()
+        # Check if contractor already exists with this email
+        existing_contractor = Contractor.query.filter_by(email=data['email']).first()
         
-        if existing:
-            return jsonify({'error': 'Registration already submitted'}), 400
-        
-        # Create registration
-        registration = ContractorRegistration(
-            project_id=project_id,
-            company_name=data['company_name'].strip(),
-            contact_person=data['contact_person'].strip(),
-            contact_email=data['contact_email'].strip().lower(),
-            status='pending'
-        )
+        if existing_contractor:
+            # Check if already registered for this project
+            existing_registration = ContractorRegistration.query.filter_by(
+                contractor_id=existing_contractor.id,
+                project_id=project.id
+            ).first()
+            
+            if existing_registration:
+                return jsonify({'error': 'You have already registered for this project'}), 400
+            
+            # Create new registration for existing contractor
+            registration = ContractorRegistration(
+                contractor_id=existing_contractor.id,
+                project_id=project.id,
+                status='pending'
+            )
+        else:
+            # Create new contractor
+            contractor = Contractor(
+                name=data['name'],
+                email=data['email'],
+                company=data['company'],
+                trade=data['trade'],
+                phone=data.get('phone')
+            )
+            db.session.add(contractor)
+            db.session.flush()  # Get contractor ID
+            
+            # Create registration
+            registration = ContractorRegistration(
+                contractor_id=contractor.id,
+                project_id=project.id,
+                status='pending'
+            )
         
         db.session.add(registration)
         db.session.commit()
         
         return jsonify({
-            'message': 'Registration submitted successfully',
-            'registration': registration.to_dict()
+            'message': 'Registration submitted successfully. You will receive an email once approved.',
+            'status': 'pending'
         }), 201
         
-    except ValueError:
-        return jsonify({'error': 'Invalid invitation code'}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

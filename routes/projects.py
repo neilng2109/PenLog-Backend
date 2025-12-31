@@ -364,5 +364,64 @@ def get_project_dashboard(project_id):
             'by_deck': list(deck_data.values())
         }), 200
         
+        # Add this endpoint to routes/projects.py
+
+@projects_bp.route('/<int:project_id>/invite-code', methods=['POST'])
+@jwt_required()
+def generate_invite_code(project_id):
+    """Generate or regenerate invite code for contractor registration"""
+    try:
+        user_id = int(get_jwt_identity())
+        current_user = User.query.get(user_id)
+        
+        # Only supervisors/admins can generate invite codes
+        if current_user.role not in ['supervisor', 'admin']:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+        
+        # Generate new invite code
+        invite_code = project.generate_invite_code()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Invite code generated successfully',
+            'invite_code': invite_code,
+            'invite_url': f'https://app.penlog.io/join/{invite_code}'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@projects_bp.route('/<int:project_id>/invite-code', methods=['GET'])
+@jwt_required()
+def get_invite_code(project_id):
+    """Get current invite code for a project"""
+    try:
+        user_id = int(get_jwt_identity())
+        current_user = User.query.get(user_id)
+        
+        # Only supervisors/admins can view invite codes
+        if current_user.role not in ['supervisor', 'admin']:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+        
+        # If no invite code exists, generate one
+        if not project.invite_code:
+            project.generate_invite_code()
+            db.session.commit()
+        
+        return jsonify({
+            'invite_code': project.invite_code,
+            'invite_url': f'https://app.penlog.io/join/{project.invite_code}'
+        }), 200
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500

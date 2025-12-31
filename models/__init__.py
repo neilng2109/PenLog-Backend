@@ -10,31 +10,29 @@ project_contractors = db.Table('project_contractors',
 )
 
 class Project(db.Model):
-    """Project/Drydock model - represents a single drydock period"""
     __tablename__ = 'projects'
     
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), nullable=False)  # e.g., "MV Pacific Dawn - Hamburg 2024"
-    ship_name = db.Column(db.String(100), nullable=False)
-    drydock_location = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    ship_name = db.Column(db.String(200), nullable=False)
+    drydock_location = db.Column(db.String(200), nullable=False)
     start_date = db.Column(db.Date, nullable=False)
     embarkation_date = db.Column(db.Date, nullable=False)
-    status = db.Column(db.String(20), default='active')  # active, completed, archived
-    supervisor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    status = db.Column(db.String(50), default='active')
     notes = db.Column(db.Text)
+    supervisor_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    invite_code = db.Column(db.String(32), unique=True, index=True)  # ADD THIS LINE
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    supervisor = db.relationship('User', backref='supervised_projects', foreign_keys=[supervisor_id])
-    penetrations = db.relationship('Penetration', backref='project', lazy='dynamic',
-                                  cascade='all, delete-orphan')
-    contractors = db.relationship('Contractor', secondary=project_contractors, 
-                                 backref=db.backref('projects', lazy='dynamic'))
-    registrations = db.relationship('ContractorRegistration', backref='project', lazy='dynamic',
-                                   cascade='all, delete-orphan')
-    access_tokens = db.relationship('ContractorAccessToken', backref='project', lazy='dynamic',
-                                   cascade='all, delete-orphan')
+    penetrations = db.relationship('Penetration', backref='project', lazy='dynamic', cascade='all, delete-orphan')
+    supervisor = db.relationship('User', backref='supervised_projects')
+    
+    def generate_invite_code(self):
+        """Generate a unique invite code for contractor registration"""
+        self.invite_code = secrets.token_urlsafe(16)  # Generates a 16-character URL-safe code
+        return self.invite_code
     
     def to_dict(self, include_stats=False):
         data = {
@@ -42,34 +40,23 @@ class Project(db.Model):
             'name': self.name,
             'ship_name': self.ship_name,
             'drydock_location': self.drydock_location,
-            'start_date': self.start_date.isoformat() if self.start_date else None,
-            'embarkation_date': self.embarkation_date.isoformat() if self.embarkation_date else None,
+            'start_date': self.start_date.isoformat(),
+            'embarkation_date': self.embarkation_date.isoformat(),
             'status': self.status,
-            'supervisor_id': self.supervisor_id,
-            'supervisor': {
-                'id': self.supervisor.id,
-                'username': self.supervisor.username,
-                'email': self.supervisor.email
-            } if self.supervisor else None,
             'notes': self.notes,
+            'supervisor_id': self.supervisor_id,
+            'invite_code': self.invite_code,  # ADD THIS LINE
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
         
         if include_stats:
-            total = self.penetrations.count()
-            not_started = self.penetrations.filter_by(status='not_started').count()
-            open_count = self.penetrations.filter_by(status='open').count()
-            closed = self.penetrations.filter_by(status='closed').count()
-            verified = self.penetrations.filter_by(status='verified').count()
-            
             data['stats'] = {
-                'total': total,
-                'not_started': not_started,
-                'open': open_count,
-                'closed': closed,
-                'verified': verified,
-                'completion_rate': round((verified / total * 100), 2) if total > 0 else 0
+                'total_penetrations': self.penetrations.count(),
+                'not_started': self.penetrations.filter_by(status='not_started').count(),
+                'open': self.penetrations.filter_by(status='open').count(),
+                'closed': self.penetrations.filter_by(status='closed').count(),
+                'verified': self.penetrations.filter_by(status='verified').count()
             }
         
         return data
