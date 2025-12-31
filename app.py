@@ -33,6 +33,7 @@ def create_app(config_name=None):
                 "https://penlog.io",
                 "https://www.penlog.io",
                 "https://app.penlog.io"  # ADD THIS
+                "https://6955e3e4--penlog-landing.netlify.app"
             ],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
