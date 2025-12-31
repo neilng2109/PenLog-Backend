@@ -6,4 +6,4 @@ psycopg2-binary==2.9.10
 python-dotenv==1.0.0
 Pillow==11.0.0
 gunicorn==21.2.0
-werkzeug==3.0.1
+werkzeug==3.0.1psycopg2-binary 
