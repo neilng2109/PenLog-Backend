@@ -47,7 +47,7 @@ def submit(invite_code):
             return jsonify({'error': 'Missing required fields'}), 400
         
         # Check if contractor already exists with this email
-        existing_contractor = Contractor.query.filter_by(email=data['email']).first()
+        existing_contractor = Contractor.query.filter_by(contact_email=data['email']).first()
         
         if existing_contractor:
             # Check if already registered for this project
@@ -66,14 +66,15 @@ def submit(invite_code):
                 status='pending'
             )
         else:
-            # Create new contractor
+            # Create new contractor using EXISTING field names
             contractor = Contractor(
-                name=data['name'],
-                email=data['email'],
-                company=data['company'],
-                trade=data['trade'],
-                phone=data.get('phone')
+                name=data['company'],  # Company name goes in 'name' field
+                contact_person=data['name'],  # Person's name
+                contact_email=data['email'],  # Email
+                contact_phone=data.get('phone', '')  # Optional phone
             )
+            # Note: We're not storing 'trade' because the old model doesn't have it
+            
             db.session.add(contractor)
             db.session.flush()  # Get contractor ID
             
