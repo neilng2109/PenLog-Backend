@@ -27,7 +27,12 @@ def create_app(config_name=None):
     # Configure CORS
     CORS(app, resources={
         r"/api/*": {
-            "origins": ["http://localhost:3000", "http://localhost:3001", "https://penlog.io"],
+            "origins": [
+                "http://localhost:3000", 
+                "http://localhost:3001", 
+                "https://penlog.io",
+                "https://penlog.netlify.app"  # ADD THIS
+            ],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
             "supports_credentials": True
