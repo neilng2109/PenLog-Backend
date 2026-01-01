@@ -141,9 +141,7 @@ def approve_registration(registration_id):
         
         # Link contractor to project if not already linked
         project = Project.query.get(registration.project_id)
-        if contractor not in project.contractors:
-            project.contractors.append(contractor)
-        
+                
         # Generate access token
         token = ContractorAccessToken(
             project_id=registration.project_id,
