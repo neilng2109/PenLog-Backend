@@ -46,44 +46,24 @@ def submit(invite_code):
         if not all(field in data for field in required_fields):
             return jsonify({'error': 'Missing required fields'}), 400
         
-        # Check if contractor already exists with this email
-        existing_contractor = Contractor.query.filter_by(contact_email=data['email']).first()
+        # Check if already registered
+        existing = ContractorRegistration.query.filter_by(
+            project_id=project.id,
+            contact_email=data['email']
+        ).first()
         
-        if existing_contractor:
-            # Check if already registered for this project
-            existing_registration = ContractorRegistration.query.filter_by(
-                contractor_id=existing_contractor.id,
-                project_id=project.id
-            ).first()
-            
-            if existing_registration:
-                return jsonify({'error': 'You have already registered for this project'}), 400
-            
-            # Create new registration for existing contractor
-            registration = ContractorRegistration(
-                contractor_id=existing_contractor.id,
-                project_id=project.id,
-                status='pending'
-            )
-        else:
-            # Create new contractor using EXISTING field names
-            contractor = Contractor(
-                name=data['company'],  # Company name goes in 'name' field
-                contact_person=data['name'],  # Person's name
-                contact_email=data['email'],  # Email
-                contact_phone=data.get('phone', '')  # Optional phone
-            )
-            # Note: We're not storing 'trade' because the old model doesn't have it
-            
-            db.session.add(contractor)
-            db.session.flush()  # Get contractor ID
-            
-            # Create registration
-            registration = ContractorRegistration(
-                contractor_id=contractor.id,
-                project_id=project.id,
-                status='pending'
-            )
+        if existing:
+            return jsonify({'error': 'You have already registered for this project'}), 400
+        
+        # Create registration (pending approval)
+        registration = ContractorRegistration(
+            project_id=project.id,
+            company_name=data['company'],
+            contact_person=data['name'],
+            contact_email=data['email'],
+            status='pending'
+        )
+        # Note: 'trade' not stored in ContractorRegistration - can add later if needed
         
         db.session.add(registration)
         db.session.commit()
