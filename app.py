@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config import config
+from routes.admin import admin_bp
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -74,6 +75,7 @@ def create_app(config_name=None):
     app.register_blueprint(report_bp, url_prefix='/api/report')
     app.register_blueprint(pdf_bp, url_prefix='/api/pdf')
     app.register_blueprint(access_bp, url_prefix='/api/access')
+    app.register_blueprint(admin_bp, url_prefix='/api/admin')
     
     # Health check endpoint
     @app.route('/health')
