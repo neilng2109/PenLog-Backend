@@ -4,7 +4,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config import config
-from routes.admin import admin_bp
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -33,7 +32,7 @@ def create_app(config_name=None):
                 "http://localhost:3001", 
                 "https://penlog.io",
                 "https://www.penlog.io",
-                "https://app.penlog.io",  # ADD THIS
+                "https://app.penlog.io",
                 "https://6955e3e4--penlog-landing.netlify.app"
             ],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -64,6 +63,7 @@ def create_app(config_name=None):
     from routes.report import report_bp
     from routes.pdf import pdf_bp
     from routes.access import access_bp
+    from routes.admin import admin_bp  # MOVE IT HERE!
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(projects_bp, url_prefix='/api/projects')
