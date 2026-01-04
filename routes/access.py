@@ -18,9 +18,12 @@ def create_access_request():
                 return jsonify({'error': f'{field} is required'}), 400
         
         # Check if email already requested
-        existing = AccessRequest.query.filter_by(email=data['email']).first()
+        existing = AccessRequest.query.filter_by(
+            email=data['email'], 
+            status='pending'
+        ).first()
         if existing:
-            return jsonify({'message': 'Access request already submitted'}), 200
+            return jsonify({'error': 'You already have a pending access request'}), 409
         
         # Create request
         access_request = AccessRequest(
