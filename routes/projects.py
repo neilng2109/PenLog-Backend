@@ -20,7 +20,7 @@ def get_projects():
         query = Project.query
         
         # Filter by supervisor - admins see all, supervisors see only their projects
-        if current_user.role != 'supervisor' or current_user.username == 'admin':
+        if current_user.username == 'admin':
             # Admin sees all projects
             pass
         else:
@@ -42,9 +42,16 @@ def get_projects():
 def get_project(project_id):
     """Get single project with stats"""
     try:
+        user_id = int(get_jwt_identity())
+        current_user = User.query.get(user_id)
+        
         project = Project.query.get(project_id)
         if not project:
             return jsonify({'error': 'Project not found'}), 404
+        
+        # Check if user has access to this project
+        if current_user.username != 'admin' and project.supervisor_id != user_id:
+            return jsonify({'error': 'Unauthorized - You are not assigned to this project'}), 403
         
         return jsonify(project.to_dict(include_stats=True)), 200
         
