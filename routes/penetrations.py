@@ -61,7 +61,7 @@ def create_penetration():
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role != 'supervisor' and current_user.role != 'admin':
             return jsonify({'error': 'Unauthorized'}), 403
         
         data = request.get_json()
