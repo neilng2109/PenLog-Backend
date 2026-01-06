@@ -80,12 +80,12 @@ def submit(invite_code):
 @registration_bp.route('/pending', methods=['GET'])
 @jwt_required()
 def get_pending_registrations():
-    """Get pending registrations (supervisor only)"""
+    """Get pending registrations (supervisor or admin)"""
     try:
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         project_id = request.args.get('project_id')
@@ -105,12 +105,12 @@ def get_pending_registrations():
 @registration_bp.route('/<int:registration_id>/approve', methods=['POST'])
 @jwt_required()
 def approve_registration(registration_id):
-    """Approve contractor registration and generate access token (supervisor only)"""
+    """Approve contractor registration and generate access token (supervisor or admin)"""
     try:
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         registration = ContractorRegistration.query.get(registration_id)
@@ -172,12 +172,12 @@ def approve_registration(registration_id):
 @registration_bp.route('/<int:registration_id>/reject', methods=['POST'])
 @jwt_required()
 def reject_registration(registration_id):
-    """Reject contractor registration (supervisor only)"""
+    """Reject contractor registration (supervisor or admin)"""
     try:
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         registration = ContractorRegistration.query.get(registration_id)
