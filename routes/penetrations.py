@@ -91,7 +91,8 @@ def create_penetration():
             location=data.get('location'),
             pen_type=data.get('pen_type'),
             size=data.get('size'),
-            contractor_id=data.get('contractor_id'),
+            # This handles both missing keys AND empty strings:
+            contractor_id=data.get('contractor_id') or None, 
             priority=data.get('priority', 'routine'),
             notes=data.get('notes')
         )
