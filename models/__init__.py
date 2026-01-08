@@ -141,6 +141,12 @@ class Penetration(db.Model):
     )
     
     def to_dict(self, include_activities=False, include_photos=False):
+        # Safely get photo count
+        try:
+            photo_count = len([p for p in self.photos])  # Use list comprehension instead of .count()
+        except:
+            photo_count = 0
+        
         data = {
             'id': self.id,
             'project_id': self.project_id,
@@ -160,9 +166,7 @@ class Penetration(db.Model):
             'notes': self.notes,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            # TEMPORARILY DISABLE PHOTO COUNT
-            # 'photo_count': self.photos.count()
-            'photo_count': 0  # Hardcode for now
+            'photo_count': photo_count  # Now safe
         }
         
         if include_activities:
