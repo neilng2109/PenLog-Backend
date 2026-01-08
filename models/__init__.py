@@ -141,11 +141,6 @@ class Penetration(db.Model):
     )
     
     def to_dict(self, include_activities=False, include_photos=False):
-        try:
-            photo_count = self.photos.count()
-        except:
-            photo_count = 0
-        
         data = {
             'id': self.id,
             'project_id': self.project_id,
@@ -165,15 +160,17 @@ class Penetration(db.Model):
             'notes': self.notes,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'photo_count': photo_count
+            # TEMPORARILY DISABLE PHOTO COUNT
+            # 'photo_count': self.photos.count()
+            'photo_count': 0  # Hardcode for now
         }
         
         if include_activities:
-            data['activities'] = [a.to_dict() for a in self.activities.order_by(PenActivity.timestamp.desc())]
+            data['activities'] = [activity.to_dict() for activity in self.activities]
         
         if include_photos:
-            data['photos'] = [p.to_dict() for p in self.photos.order_by(Photo.uploaded_at.desc())]
-            
+            data['photos'] = [photo.to_dict() for photo in self.photos]
+        
         return data
 
 class PenActivity(db.Model):
