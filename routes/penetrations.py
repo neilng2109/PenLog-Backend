@@ -34,9 +34,25 @@ def get_penetrations():
             query = query.filter_by(priority=priority)
         
         penetrations = query.all()
-        return jsonify([pen.to_dict() for pen in penetrations]), 200
+        
+        # Serialize each pen individually to catch errors
+        result = []
+        for pen in penetrations:
+            try:
+                result.append(pen.to_dict())
+            except Exception as pen_error:
+                print(f"ERROR serializing pen {pen.id}: {str(pen_error)}")
+                import traceback
+                traceback.print_exc()
+                # Re-raise to see full error
+                raise
+        
+        return jsonify(result), 200
         
     except Exception as e:
+        print(f"MAIN ERROR in get_penetrations: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @penetrations_bp.route('/<int:pen_id>', methods=['GET'])
