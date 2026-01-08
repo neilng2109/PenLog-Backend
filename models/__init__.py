@@ -224,6 +224,7 @@ class Photo(db.Model):
             'username': self.user.username if self.user else None,
             'filename': self.filename,
             'filepath': self.filepath,
+            'cloudinary_public_id': self.cloudinary_public_id,
             'caption': self.caption,
             'photo_type': self.photo_type,
             'uploaded_at': self.uploaded_at.isoformat() if self.uploaded_at else None
