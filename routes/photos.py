@@ -1,93 +1,75 @@
-import os
-from flask import Blueprint, request, jsonify, send_file, current_app
+from flask import Blueprint, request, jsonify, redirect
 from flask_jwt_extended import jwt_required, get_jwt_identity
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 from werkzeug.utils import secure_filename
-from PIL import Image
+import os
 from app import db
 from models import Photo, Penetration, User
-from datetime import datetime
 
 photos_bp = Blueprint('photos', __name__)
 
-def allowed_file(filename):
-    """Check if file extension is allowed"""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
+# Configure Cloudinary (reads from environment variables)
+cloudinary.config(
+    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.environ.get('CLOUDINARY_API_KEY'),
+    api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
+    secure=True
+)
 
-def optimize_image(filepath, max_size=(1920, 1080), quality=85):
-    """Optimize image size and quality"""
-    try:
-        img = Image.open(filepath)
-        
-        # Convert to RGB if necessary
-        if img.mode in ('RGBA', 'P'):
-            img = img.convert('RGB')
-        
-        # Resize if larger than max_size
-        img.thumbnail(max_size, Image.Resampling.LANCZOS)
-        
-        # Save optimized image
-        img.save(filepath, 'JPEG', quality=quality, optimize=True)
-        
-    except Exception as e:
-        print(f"Error optimizing image: {e}")
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'heic'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @photos_bp.route('/upload', methods=['POST'])
 @jwt_required()
 def upload_photo():
-    """Upload photo for a penetration"""
+    """Upload photo to Cloudinary and create database record"""
     try:
         user_id = int(get_jwt_identity())
         
-        # Check if file is present
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
-        
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
         
         if not allowed_file(file.filename):
-            return jsonify({'error': 'Invalid file type'}), 400
+            return jsonify({'error': 'Invalid file type. Allowed: png, jpg, jpeg, gif, heic'}), 400
         
-        # Get additional data
         penetration_id = request.form.get('penetration_id')
-        caption = request.form.get('caption')
-        photo_type = request.form.get('photo_type', 'general')
-        
         if not penetration_id:
             return jsonify({'error': 'Penetration ID required'}), 400
         
-        # Verify penetration exists
         penetration = Penetration.query.get(penetration_id)
         if not penetration:
             return jsonify({'error': 'Penetration not found'}), 404
         
-        # Generate unique filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = secure_filename(file.filename)
-        name, ext = os.path.splitext(filename)
-        unique_filename = f"{penetration.pen_id}_{timestamp}_{name}{ext}"
+        photo_type = request.form.get('photo_type', 'general')
+        caption = request.form.get('caption')
         
-        # Create upload directory if it doesn't exist
-        upload_folder = current_app.config['UPLOAD_FOLDER']
-        pen_folder = os.path.join(upload_folder, penetration.pen_id)
-        os.makedirs(pen_folder, exist_ok=True)
+        # Upload to Cloudinary
+        # Organize by penetration ID for better management
+        upload_result = cloudinary.uploader.upload(
+            file,
+            folder=f"penlog/pen_{penetration_id}",
+            resource_type="image",
+            transformation=[
+                {'width': 1920, 'height': 1080, 'crop': 'limit'},  # Max size
+                {'quality': 'auto:good'}  # Auto optimize quality
+            ]
+        )
         
-        # Save file
-        filepath = os.path.join(pen_folder, unique_filename)
-        file.save(filepath)
-        
-        # Optimize image
-        optimize_image(filepath)
-        
-        # Create photo record
+        # Create database record
         photo = Photo(
             penetration_id=penetration_id,
             user_id=user_id,
-            filename=unique_filename,
-            filepath=filepath,
+            filename=secure_filename(file.filename),
+            filepath=upload_result['secure_url'],  # Store Cloudinary URL
+            cloudinary_public_id=upload_result['public_id'],  # For deletion
             caption=caption,
             photo_type=photo_type
         )
@@ -102,22 +84,7 @@ def upload_photo():
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-@photos_bp.route('/<int:photo_id>', methods=['GET'])
-def get_photo(photo_id):
-    """Get photo file - public endpoint for image display"""
-    try:
-        photo = Photo.query.get(photo_id)
-        if not photo:
-            return jsonify({'error': 'Photo not found'}), 404
-        
-        if not os.path.exists(photo.filepath):
-            return jsonify({'error': 'Photo file not found'}), 404
-        
-        return send_file(photo.filepath, mimetype='image/jpeg')
-        
-    except Exception as e:
+        print(f"Photo upload error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @photos_bp.route('/<int:photo_id>/info', methods=['GET'])
@@ -134,10 +101,24 @@ def get_photo_info(photo_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@photos_bp.route('/<int:photo_id>', methods=['GET'])
+def get_photo(photo_id):
+    """Redirect to Cloudinary URL - public endpoint"""
+    try:
+        photo = Photo.query.get(photo_id)
+        if not photo:
+            return jsonify({'error': 'Photo not found'}), 404
+        
+        # Redirect to Cloudinary URL
+        return redirect(photo.filepath)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @photos_bp.route('/<int:photo_id>', methods=['DELETE'])
 @jwt_required()
 def delete_photo(photo_id):
-    """Delete photo"""
+    """Delete photo from Cloudinary and database"""
     try:
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
@@ -146,13 +127,17 @@ def delete_photo(photo_id):
         if not photo:
             return jsonify({'error': 'Photo not found'}), 404
         
-        # Only photo uploader or supervisor can delete
-        if photo.user_id != user_id and current_user.role != 'supervisor':
+        # Only photo uploader or supervisor/admin can delete
+        if photo.user_id != user_id and current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
-        # Delete file from filesystem
-        if os.path.exists(photo.filepath):
-            os.remove(photo.filepath)
+        # Delete from Cloudinary
+        try:
+            if hasattr(photo, 'cloudinary_public_id') and photo.cloudinary_public_id:
+                cloudinary.uploader.destroy(photo.cloudinary_public_id)
+        except Exception as e:
+            print(f"Cloudinary deletion error: {str(e)}")
+            # Continue even if Cloudinary delete fails
         
         # Delete database record
         db.session.delete(photo)

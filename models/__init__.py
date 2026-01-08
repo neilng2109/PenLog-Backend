@@ -209,6 +209,7 @@ class Photo(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     filename = db.Column(db.String(255), nullable=False)
     filepath = db.Column(db.String(500), nullable=False)
+    cloudinary_public_id = db.Column(db.String(500)) 
     caption = db.Column(db.String(200))
     photo_type = db.Column(db.String(20), default='general')  # before, after, issue, general
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
