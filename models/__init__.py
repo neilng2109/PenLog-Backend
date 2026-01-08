@@ -141,6 +141,11 @@ class Penetration(db.Model):
     )
     
     def to_dict(self, include_activities=False, include_photos=False):
+        try:
+            photo_count = self.photos.count()
+        except:
+            photo_count = 0
+        
         data = {
             'id': self.id,
             'project_id': self.project_id,
@@ -160,7 +165,7 @@ class Penetration(db.Model):
             'notes': self.notes,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'photo_count': self.photos.count()  # Add photo count
+            'photo_count': photo_count
         }
         
         if include_activities:
