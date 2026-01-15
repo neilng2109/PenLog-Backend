@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
 from models import Contractor, User
+from urllib.parse import urlencode
 
 contractors_bp = Blueprint('contractors', __name__)
 
@@ -176,9 +177,20 @@ def generate_access_link(contractor_id):
         ).first()
         
         if existing_token:
+            # Build URL with contractor details
+            params = {
+                'name': contractor.name,
+                'contact': contractor.contact_person or '',
+                'email': contractor.contact_email or ''
+            }
+            magic_url = f"{request.host_url}report/{existing_token.token}?{urlencode(params)}"
+            
             return jsonify({
                 'message': 'Access link already exists',
-                'access_token': existing_token.to_dict()
+                'access_token': {
+                    **existing_token.to_dict(),
+                    'link': magic_url
+                }
             }), 200
         
         # Generate new token
@@ -193,9 +205,86 @@ def generate_access_link(contractor_id):
         db.session.add(token)
         db.session.commit()
         
+        # Build URL with contractor details
+        params = {
+            'name': contractor.name,
+            'contact': contractor.contact_person or '',
+            'email': contractor.contact_email or ''
+        }
+        magic_url = f"{request.host_url}report/{token.token}?{urlencode(params)}"
+        
         return jsonify({
             'message': 'Access link generated successfully',
-            'access_token': token.to_dict()
+            'access_token': {
+                **token.to_dict(),
+                'link': magic_url
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@contractors_bp.route('/generate-new-link', methods=['POST'])
+@jwt_required()
+def generate_new_contractor_link():
+    """Generate magic link for NEW contractor (auto-create on first access)"""
+    try:
+        user_id = int(get_jwt_identity())
+        current_user = User.query.get(user_id)
+        
+        if current_user.role != 'supervisor':
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        data = request.get_json()
+        project_id = data.get('project_id')
+        contractor_name = data.get('contractor_name')
+        contact_person = data.get('contact_person')
+        contact_email = data.get('contact_email')
+        
+        if not project_id or not contractor_name:
+            return jsonify({'error': 'Project ID and contractor name required'}), 400
+        
+        from models import Project, ContractorAccessToken
+        
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+        
+        # Check if contractor already exists
+        contractor = Contractor.query.filter_by(name=contractor_name).first()
+        
+        if contractor:
+            # Use existing contractor's generate_access_link endpoint
+            return generate_access_link(contractor.id)
+        
+        # Generate token WITHOUT contractor_id (will be created on first access)
+        token = ContractorAccessToken(
+            project_id=project_id,
+            contractor_id=None,  # Will be set when contractor clicks link
+            token=ContractorAccessToken.generate_token(),
+            active=True,
+            expires_at=project.embarkation_date
+        )
+        
+        db.session.add(token)
+        db.session.commit()
+        
+        # Build URL with contractor details
+        params = {
+            'name': contractor_name,
+            'contact': contact_person or '',
+            'email': contact_email or ''
+        }
+        magic_url = f"{request.host_url}report/{token.token}?{urlencode(params)}"
+        
+        return jsonify({
+            'message': 'Access link generated successfully',
+            'access_token': {
+                **token.to_dict(),
+                'link': magic_url
+            },
+            'note': 'Contractor will be created automatically when they first access the link'
         }), 201
         
     except Exception as e:
@@ -276,11 +365,23 @@ def get_project_contractor_links(project_id):
         
         result = []
         for token in tokens:
+            contractor_name = token.contractor.name if token.contractor else 'Pending'
+            contact_person = token.contractor.contact_person if token.contractor else ''
+            contact_email = token.contractor.contact_email if token.contractor else ''
+            
+            # Build URL with contractor details
+            params = {
+                'name': contractor_name,
+                'contact': contact_person,
+                'email': contact_email
+            }
+            magic_url = f"{request.host_url}report/{token.token}?{urlencode(params)}"
+            
             result.append({
                 'contractor_id': token.contractor_id,
-                'contractor_name': token.contractor.name,
+                'contractor_name': contractor_name,
                 'token': token.token,
-                'magic_link': f"{request.host_url}report/{token.token}",
+                'magic_link': magic_url,
                 'last_used': token.last_used_at.isoformat() if token.last_used_at else None,
                 'created_at': token.created_at.isoformat() if token.created_at else None
             })
@@ -303,6 +404,10 @@ def regenerate_magic_link(project_id, contractor_id):
         if current_user.role != 'supervisor':
             return jsonify({'error': 'Unauthorized'}), 403
         
+        contractor = Contractor.query.get(contractor_id)
+        if not contractor:
+            return jsonify({'error': 'Contractor not found'}), 404
+        
         # Deactivate old token
         old_token = ContractorAccessToken.query.filter_by(
             project_id=project_id,
@@ -324,10 +429,18 @@ def regenerate_magic_link(project_id, contractor_id):
         db.session.add(new_token)
         db.session.commit()
         
+        # Build URL with contractor details
+        params = {
+            'name': contractor.name,
+            'contact': contractor.contact_person or '',
+            'email': contractor.contact_email or ''
+        }
+        magic_url = f"{request.host_url}report/{new_token.token}?{urlencode(params)}"
+        
         return jsonify({
             'message': 'Magic link regenerated successfully',
             'token': new_token.token,
-            'magic_link': f"{request.host_url}report/{new_token.token}"
+            'magic_link': magic_url
         }), 200
         
     except Exception as e:

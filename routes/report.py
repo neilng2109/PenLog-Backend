@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from app import db
-from models import ContractorAccessToken, Penetration, PenActivity, Photo, Project
+from models import ContractorAccessToken, Penetration, PenActivity, Photo, Project, Contractor
 import os
 from werkzeug.utils import secure_filename
 
@@ -11,6 +11,11 @@ report_bp = Blueprint('report', __name__)
 def get_contractor_form(token):
     """Get contractor reporting form (public, no auth required)"""
     try:
+        # Get contractor details from URL params
+        contractor_name = request.args.get('name')
+        contact_person = request.args.get('contact')
+        contact_email = request.args.get('email')
+        
         access_token = ContractorAccessToken.query.filter_by(token=token).first()
         
         if not access_token:
@@ -18,6 +23,24 @@ def get_contractor_form(token):
         
         if not access_token.is_valid():
             return jsonify({'error': 'Access link has expired or been revoked'}), 403
+        
+        # If contractor details provided and contractor doesn't exist yet, create it
+        if contractor_name and not access_token.contractor_id:
+            contractor = Contractor.query.filter_by(name=contractor_name).first()
+            
+            if not contractor:
+                # Auto-create contractor (pre-approved)
+                contractor = Contractor(
+                    name=contractor_name,
+                    contact_person=contact_person,
+                    contact_email=contact_email,
+                    active=True
+                )
+                db.session.add(contractor)
+                db.session.flush()
+                
+                # Update token with contractor_id
+                access_token.contractor_id = contractor.id
         
         # Update last used timestamp
         access_token.last_used_at = datetime.utcnow()
@@ -48,6 +71,7 @@ def get_contractor_form(token):
         }), 200
         
     except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @report_bp.route('/<token>/create-pen', methods=['POST'])
