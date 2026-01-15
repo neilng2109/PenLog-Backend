@@ -1,7 +1,3 @@
-UPDATE FOR routes/pdf.py
-
-Replace the export_complete_package function with:
-
 @pdf_bp.route('/project/<int:project_id>/complete', methods=['GET'])
 @jwt_required()
 def export_complete_package(project_id):
