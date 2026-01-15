@@ -1,3 +1,13 @@
+from flask import Blueprint, send_file, jsonify, current_app
+from flask_jwt_extended import jwt_required
+from models import Project, Penetration, Contractor
+from utils.pdf_generator import generate_penetration_report, generate_contractor_report
+from utils.excel_generator import generate_penetration_excel
+from utils.package_generator import generate_complete_package
+from datetime import datetime
+
+pdf_bp = Blueprint('pdf', __name__)
+
 @pdf_bp.route('/project/<int:project_id>/complete', methods=['GET'])
 @jwt_required()
 def export_complete_package(project_id):
