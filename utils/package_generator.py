@@ -16,7 +16,7 @@ def generate_complete_package(project, penetrations, upload_folder):
     Args:
         project: Project object
         penetrations: List of Penetration objects
-        upload_folder: Path to uploads folder where photos are stored
+        upload_folder: Path to uploads folder where photos are stored (legacy, not used for Cloudinary)
     
     Returns:
         BytesIO object containing the zip file
@@ -101,9 +101,9 @@ def generate_complete_package(project, penetrations, upload_folder):
         opening_photo = None
         closing_photo = None
         
-        # Copy photos to pen folder and categorize
+        # Download photos from Cloudinary and save to pen folder
         for idx, photo in enumerate(photos):
-            if os.path.exists(photo.filepath):
+            try:
                 # Determine photo type
                 photo_type = photo.photo_type or 'general'
                 
@@ -118,15 +118,32 @@ def generate_complete_package(project, penetrations, upload_folder):
                 else:
                     new_filename = f"photo_{idx + 1}{ext}"
                 
-                # Copy photo to pen folder
                 dest_path = os.path.join(pen_folder, new_filename)
-                shutil.copy2(photo.filepath, dest_path)
+                
+                # Check if photo is on Cloudinary (URL) or local filesystem
+                if photo.filepath.startswith('http'):
+                    # Download from Cloudinary
+                    import requests
+                    response = requests.get(photo.filepath, timeout=30)
+                    response.raise_for_status()
+                    with open(dest_path, 'wb') as f:
+                        f.write(response.content)
+                else:
+                    # Legacy: copy from local filesystem
+                    if os.path.exists(photo.filepath):
+                        shutil.copy2(photo.filepath, dest_path)
+                    else:
+                        continue  # Skip if file doesn't exist
                 
                 # If we don't have opening/closing yet, assign first two
                 if idx == 0 and not opening_photo:
                     opening_photo = new_filename
                 elif idx == 1 and not closing_photo:
                     closing_photo = new_filename
+                    
+            except Exception as e:
+                print(f"Error processing photo {photo.id}: {str(e)}")
+                continue  # Skip this photo if download fails
         
         # Add hyperlinks to photos
         if opening_photo:
