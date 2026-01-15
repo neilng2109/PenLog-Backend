@@ -32,6 +32,3 @@ def export_complete_package(project_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
-CHANGE: Returns .xlsx file instead of .zip file
-CHANGE: Uses application/vnd.openxmlformats-officedocument.spreadsheetml.sheet mimetype
