@@ -208,12 +208,7 @@ def generate_magic_link():
         db.session.commit()
         
         # Build URL with contractor details
-        params = {
-            'name': contractor_name,
-            'contact': contact_person or '',
-            'email': contact_email or ''
-        }
-        magic_url = f"{request.host_url}report/{token.token}?{urlencode(params)}"
+        magic_url = f"https://app.penlog.io/report/{token.token}"
         
         return jsonify({
             'message': 'Access link generated successfully',
@@ -312,12 +307,7 @@ def get_project_contractor_links(project_id):
                 contact_email = ''
             
             # Build URL with contractor details
-            params = {
-                'name': contractor_name,
-                'contact': contact_person,
-                'email': contact_email
-            }
-            magic_url = f"{request.host_url}report/{token.token}?{urlencode(params)}"
+            magic_url = f"https://app.penlog.io/report/{token.token}"
             
             result.append({
                 'contractor_id': token.contractor_id,
@@ -371,16 +361,7 @@ def regenerate_magic_link(project_id, token):
         db.session.commit()
         
         # Build URL
-        if old_token.contractor:
-            params = {
-                'name': old_token.contractor.name,
-                'contact': old_token.contractor.contact_person or '',
-                'email': old_token.contractor.contact_email or ''
-            }
-        else:
-            params = {'name': 'Pending'}
-        
-        magic_url = f"{request.host_url}report/{new_token.token}?{urlencode(params)}"
+        magic_url = f"https://app.penlog.io/report/{new_token.token}"
         
         return jsonify({
             'message': 'Magic link regenerated successfully',
