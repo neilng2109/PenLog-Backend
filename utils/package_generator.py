@@ -1,32 +1,22 @@
-"""Complete Package Generator - Excel + Photo Archive"""
+"""Complete Package Generator - Excel with Cloudinary Photo Links"""
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 from datetime import datetime
 from io import BytesIO
-import os
-import shutil
-import zipfile
-from pathlib import Path
 
 def generate_complete_package(project, penetrations, upload_folder):
     """
-    Generate complete package: Excel with data + organized photo folders + hyperlinks
+    Generate complete package: Excel with Cloudinary photo links
     
     Args:
         project: Project object
         penetrations: List of Penetration objects
-        upload_folder: Path to uploads folder where photos are stored (legacy, not used for Cloudinary)
+        upload_folder: Not used (kept for backward compatibility)
     
     Returns:
-        BytesIO object containing the zip file
+        BytesIO object containing the Excel file
     """
-    # Create temporary directory for Excel file
-    import tempfile
-    temp_dir = tempfile.mkdtemp()
-    package_name = f"PenLog_{project.ship_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}"
-    package_dir = os.path.join(temp_dir, package_name)
-    os.makedirs(package_dir)
     
     # === CREATE EXCEL FILE ===
     wb = Workbook()
@@ -35,10 +25,8 @@ def generate_complete_package(project, penetrations, upload_folder):
     
     # Colors
     navy_fill = PatternFill(start_color="243b53", end_color="243b53", fill_type="solid")
-    teal_fill = PatternFill(start_color="14b8a6", end_color="14b8a6", fill_type="solid")
     light_gray_fill = PatternFill(start_color="f0f4f8", end_color="f0f4f8", fill_type="solid")
     white_font = Font(color="FFFFFF", bold=True, size=11)
-    bold_font = Font(bold=True, size=11)
     link_font = Font(color="0563C1", underline="single", size=10)
     
     # Headers
@@ -141,18 +129,18 @@ def generate_complete_package(project, penetrations, upload_folder):
         # Photo count
         folder_cell = ws.cell(row=row_idx, column=10)
         photo_count = len(all_photo_urls)
-        folder_cell.value = f"{photo_count} photos"
+        folder_cell.value = f"{photo_count} photos" if photo_count > 0 else "-"
         folder_cell.alignment = Alignment(horizontal='center')
         folder_cell.font = Font(size=9, italic=True, color="666666")
         
         # Alternating row colors
         if row_idx % 2 == 0:
             for col in range(1, 11):
-                if col not in [7, 8, 9, 10]:  # Don't override status/link colors
+                if col not in [7, 8, 9]:  # Don't override status/link colors
                     ws.cell(row=row_idx, column=col).fill = light_gray_fill
     
     # Column widths
-    column_widths = [12, 8, 12, 25, 15, 20, 12, 15, 15, 15]
+    column_widths = [12, 8, 12, 25, 15, 20, 12, 15, 15, 12]
     for idx, width in enumerate(column_widths, 1):
         ws.column_dimensions[get_column_letter(idx)].width = width
     
@@ -208,12 +196,9 @@ def generate_complete_package(project, penetrations, upload_folder):
     ws_instructions.column_dimensions['A'].width = 40
     ws_instructions.column_dimensions['B'].width = 40
     
-    # Save Excel file to buffer (no ZIP needed)
+    # Save Excel file to buffer
     excel_buffer = BytesIO()
     wb.save(excel_buffer)
     excel_buffer.seek(0)
-    
-    # Cleanup temp directory
-    shutil.rmtree(temp_dir)
     
     return excel_buffer
