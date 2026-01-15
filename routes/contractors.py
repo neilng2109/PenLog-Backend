@@ -45,7 +45,7 @@ def create_contractor():
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         data = request.get_json()
@@ -85,7 +85,7 @@ def update_contractor(contractor_id):
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         contractor = Contractor.query.get(contractor_id)
@@ -150,7 +150,7 @@ def generate_magic_link():
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         data = request.get_json()
@@ -235,7 +235,7 @@ def merge_contractors():
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         data = request.get_json()
@@ -290,7 +290,7 @@ def get_project_contractor_links(project_id):
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         # Get all active tokens for this project
@@ -343,7 +343,7 @@ def regenerate_magic_link(project_id, token):
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         # Find old token
