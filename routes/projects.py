@@ -21,7 +21,7 @@ def get_projects():
         query = Project.query
         
         # Filter by supervisor - admins see all, supervisors see only their projects
-        if current_user.username == 'admin':
+        if current_user.role == 'admin':
             # Admin sees all projects
             pass
         else:
