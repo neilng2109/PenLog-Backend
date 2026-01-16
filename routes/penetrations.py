@@ -309,8 +309,8 @@ def bulk_import():
 def update_penetration(pen_id):
     """Update a penetration (admin or supervisor of project only)"""
     try:
-        current_user = get_jwt_identity()
-        user = User.query.filter_by(username=current_user).first()
+        user_id = int(get_jwt_identity())  # Get user ID
+        user = User.query.get(user_id)  # Query by ID, not username
         
         if not user:
             return jsonify({'error': 'User not found'}), 404
@@ -367,8 +367,8 @@ def update_penetration(pen_id):
 def delete_penetration(pen_id):
     """Delete a penetration (admin or supervisor of project only)"""
     try:
-        current_user = get_jwt_identity()
-        user = User.query.filter_by(username=current_user).first()
+        user_id = int(get_jwt_identity())  # Get user ID
+        user = User.query.get(user_id)  # Query by ID, not username
         
         if not user:
             return jsonify({'error': 'User not found'}), 404
