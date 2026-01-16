@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from app import db
 from models import Project, User
+from sqlalchemy import func, case
 
 projects_bp = Blueprint('projects', __name__)
 
@@ -289,45 +290,38 @@ def get_project_dashboard(project_id):
             Penetration.status.in_(['open', 'closed'])  # Only check active pens
         ).count()
         
-        # By contractor
+       # By contractor - aggregate all statuses
         contractor_stats = db.session.query(
             Contractor.id,
             Contractor.name,
-            Penetration.status,
-            func.count(Penetration.id).label('count')
-        ).join(Penetration).filter(
+            func.count(Penetration.id).label('total'),
+            func.sum(case((Penetration.status == 'verified', 1), else_=0)).label('verified'),
+            func.sum(case((Penetration.status == 'closed', 1), else_=0)).label('closed'),
+            func.sum(case((Penetration.status == 'open', 1), else_=0)).label('open'),
+            func.sum(case((Penetration.status == 'not_started', 1), else_=0)).label('not_started')
+        ).join(Penetration, Contractor.id == Penetration.contractor_id).filter(
             Penetration.project_id == project_id
         ).group_by(
             Contractor.id,
-            Contractor.name,
-            Penetration.status
+            Contractor.name
         ).all()
+
+        # Build contractor data
+        contractor_data = []
+        for stat in contractor_stats:
+            completion_rate = round((stat.verified / stat.total * 100), 2) if stat.total > 0 else 0
+            contractor_data.append({
+                'id': stat.id,
+                'name': stat.name,
+                'total': stat.total,
+                'not_started': stat.not_started,
+                'open': stat.open,
+                'closed': stat.closed,
+                'verified': stat.verified,
+                'completion_rate': completion_rate
+            })
         
-        # Organize contractor data
-        contractor_data = {}
-        for contractor_id, contractor_name, status, count in contractor_stats:
-            if contractor_id not in contractor_data:
-                contractor_data[contractor_id] = {
-                    'id': contractor_id,
-                    'name': contractor_name,
-                    'total': 0,
-                    'not_started': 0,
-                    'open': 0,
-                    'closed': 0,
-                    'verified': 0,
-                    'completion_rate': 0
-                }
-            
-            if status:
-                contractor_data[contractor_id][status] = count
-                contractor_data[contractor_id]['total'] += count
-        
-        # Calculate completion rates
-        for contractor_id in contractor_data:
-            data = contractor_data[contractor_id]
-            if data['total'] > 0:
-                data['completion_rate'] = round((data['verified'] / data['total'] * 100), 2)
-        
+                
         # By deck
         deck_stats = db.session.query(
             Penetration.deck,
@@ -367,7 +361,7 @@ def get_project_dashboard(project_id):
                 'completion_rate': round((verified / total * 100), 2) if total > 0 else 0,
                 'pens_without_photos': pens_with_insufficient_photos
             },
-            'by_contractor': list(contractor_data.values()),
+            'by_contractor': contractor_data,
             'by_deck': list(deck_data.values())
         }), 200
                
