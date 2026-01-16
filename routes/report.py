@@ -130,6 +130,18 @@ def submit_contractor_report(token):
         if penetration.contractor_id != access_token.contractor_id:
             return jsonify({'error': 'You are not assigned to this penetration'}), 403
         
+        # ========== ADD THIS VALIDATION BLOCK ==========
+        # Validate photo count when closing
+        if data['action'] == 'close':
+            photo_count = penetration.photos.count()
+            if photo_count < 2:
+                return jsonify({
+                    'error': f'Cannot close: Only {photo_count} photo(s) attached. Minimum 2 photos required.',
+                    'photo_count': photo_count,
+                    'requires_photos': True
+                }), 400
+        # ========== END NEW VALIDATION ==========
+        
         # Update status based on action
         previous_status = penetration.status
         
