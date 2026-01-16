@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from datetime import datetime  # ADD THIS
 from app import db
-from models import Penetration, PenActivity, User
+from models import Penetration, PenActivity, User, Project  # ADD Project
 
 penetrations_bp = Blueprint('penetrations', __name__)
 
@@ -125,42 +126,6 @@ def create_penetration():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-@penetrations_bp.route('/<int:pen_id>', methods=['PUT'])
-@jwt_required()
-def update_penetration(pen_id):
-    """Update penetration details"""
-    try:
-        user_id = int(get_jwt_identity())
-        current_user = User.query.get(user_id)
-        
-        penetration = Penetration.query.get(pen_id)
-        if not penetration:
-            return jsonify({'error': 'Penetration not found'}), 404
-        
-        data = request.get_json()
-        
-        # Only supervisor can change certain fields
-        supervisor_only_fields = ['pen_id', 'contractor_id', 'priority']
-        if current_user.role != 'supervisor':
-            if any(field in data for field in supervisor_only_fields):
-                return jsonify({'error': 'Unauthorized to modify these fields'}), 403
-        
-        # Update fields
-        allowed_fields = ['deck', 'location', 'pen_type', 'size', 'contractor_id', 'priority', 'notes']
-        for field in allowed_fields:
-            if field in data:
-                setattr(penetration, field, data[field])
-        
-        db.session.commit()
-        
-        return jsonify({
-            'message': 'Penetration updated successfully',
-            'penetration': penetration.to_dict()
-        }), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
 
 @penetrations_bp.route('/<int:pen_id>/status', methods=['POST'])
 @jwt_required()
