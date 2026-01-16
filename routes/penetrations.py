@@ -338,3 +338,103 @@ def bulk_import():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+        
+@penetrations_bp.route('/<int:pen_id>', methods=['PUT'])
+@jwt_required()
+def update_penetration(pen_id):
+    """Update a penetration (admin or supervisor of project only)"""
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        pen = Penetration.query.get(pen_id)
+        if not pen:
+            return jsonify({'error': 'Penetration not found'}), 404
+        
+        # Authorization check
+        if user.role == 'supervisor':
+            # Supervisors can only edit pens in their assigned projects
+            project = Project.query.get(pen.project_id)
+            if not project or project.supervisor_id != user.id:
+                return jsonify({'error': 'Not authorized to edit this penetration'}), 403
+        elif user.role != 'admin':
+            return jsonify({'error': 'Not authorized'}), 403
+        
+        # Get update data
+        data = request.get_json()
+        
+        # Update fields
+        if 'deck' in data:
+            pen.deck = data['deck']
+        if 'location' in data:
+            pen.location = data['location']
+        if 'pen_id' in data:
+            pen.pen_id = data['pen_id']
+        if 'status' in data:
+            if data['status'] not in ['not_started', 'open', 'closed', 'verified']:
+                return jsonify({'error': 'Invalid status'}), 400
+            pen.status = data['status']
+        if 'diameter' in data:
+            pen.diameter = data['diameter']
+        if 'notes' in data:
+            pen.notes = data['notes']
+        if 'contractor_id' in data:
+            pen.contractor_id = data['contractor_id']
+        
+        pen.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Penetration updated successfully',
+            'penetration': pen.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@penetrations_bp.route('/<int:pen_id>', methods=['DELETE'])
+@jwt_required()
+def delete_penetration(pen_id):
+    """Delete a penetration (admin or supervisor of project only)"""
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        pen = Penetration.query.get(pen_id)
+        if not pen:
+            return jsonify({'error': 'Penetration not found'}), 404
+        
+        # Authorization check
+        if user.role == 'supervisor':
+            # Supervisors can only delete pens in their assigned projects
+            project = Project.query.get(pen.project_id)
+            if not project or project.supervisor_id != user.id:
+                return jsonify({'error': 'Not authorized to delete this penetration'}), 403
+        elif user.role != 'admin':
+            return jsonify({'error': 'Not authorized'}), 403
+        
+        # Delete associated photos first (cascade delete)
+        from models import Photo
+        Photo.query.filter_by(penetration_id=pen_id).delete()
+        
+        # Hard delete the penetration
+        db.session.delete(pen)
+        db.session.commit()
+        
+        return jsonify({'message': 'Penetration deleted successfully'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500        
+        
+        
+        
+        
