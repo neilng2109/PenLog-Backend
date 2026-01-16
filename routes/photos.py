@@ -7,6 +7,8 @@ from werkzeug.utils import secure_filename
 import os
 from app import db
 from models import Photo, Penetration, User
+from models import ContractorAccessToken  # Add this import at top
+from datetime import datetime
 
 photos_bp = Blueprint('photos', __name__)
 
@@ -86,6 +88,83 @@ def upload_photo():
         db.session.rollback()
         print(f"Photo upload error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+        
+@photos_bp.route('/<token>/upload', methods=['POST'])
+def upload_photo_via_magic_link(token):
+    """Upload photo via magic link (public access, no JWT required)"""
+    try:
+        # Verify magic link token
+        access_token = ContractorAccessToken.query.filter_by(token=token).first()
+        
+        if not access_token:
+            return jsonify({'error': 'Invalid access link'}), 404
+        
+        if not access_token.is_valid():
+            return jsonify({'error': 'Access link has expired or been revoked'}), 403
+        
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file type. Allowed: png, jpg, jpeg, gif, heic'}), 400
+        
+        penetration_id = request.form.get('penetration_id')
+        if not penetration_id:
+            return jsonify({'error': 'Penetration ID required'}), 400
+        
+        penetration = Penetration.query.get(penetration_id)
+        if not penetration:
+            return jsonify({'error': 'Penetration not found'}), 404
+        
+        # Verify this contractor is assigned to this pen
+        if penetration.contractor_id != access_token.contractor_id:
+            return jsonify({'error': 'You are not assigned to this penetration'}), 403
+        
+        photo_type = request.form.get('photo_type', 'general')
+        caption = request.form.get('caption')
+        
+        # Upload to Cloudinary
+        upload_result = cloudinary.uploader.upload(
+            file,
+            folder=f"penlog/pen_{penetration_id}",
+            resource_type="image",
+            transformation=[
+                {'width': 1920, 'height': 1080, 'crop': 'limit'},
+                {'quality': 'auto:good'}
+            ]
+        )
+        
+        # Create database record (no user_id since this is magic link access)
+        photo = Photo(
+            penetration_id=penetration_id,
+            user_id=None,  # No user for magic link uploads
+            filename=secure_filename(file.filename),
+            filepath=upload_result['secure_url'],
+            cloudinary_public_id=upload_result['public_id'],
+            caption=caption,
+            photo_type=photo_type
+        )
+        
+        db.session.add(photo)
+        
+        # Update last used timestamp
+        access_token.last_used_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Photo uploaded successfully',
+            'photo': photo.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Photo upload error: {str(e)}")
+        return jsonify({'error': str(e)}), 500        
 
 @photos_bp.route('/<int:photo_id>/info', methods=['GET'])
 @jwt_required()
