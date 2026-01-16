@@ -67,7 +67,7 @@ def create_project():
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role != 'supervisor' and current_user.role != 'admin':  # Also allow admin
             return jsonify({'error': 'Unauthorized'}), 403
         
         data = request.get_json()
@@ -90,6 +90,7 @@ def create_project():
             drydock_location=data['drydock_location'],
             start_date=start_date,
             embarkation_date=embarkation_date,
+            supervisor_id=user_id,  # SET SUPERVISOR TO CURRENT USER
             status=data.get('status', 'active'),
             notes=data.get('notes')
         )
