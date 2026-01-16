@@ -186,8 +186,19 @@ def submit_contractor_report(token):
 
 @report_bp.route('/<token>/upload', methods=['POST'])
 def upload_contractor_photo(token):
-    """Upload photo for penetration (public, no auth required)"""
+    """Upload photo for penetration via Cloudinary (public, no auth required)"""
     try:
+        import cloudinary
+        import cloudinary.uploader
+        
+        # Configure Cloudinary
+        cloudinary.config(
+            cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
+            api_key=os.environ.get('CLOUDINARY_API_KEY'),
+            api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
+            secure=True
+        )
+        
         access_token = ContractorAccessToken.query.filter_by(token=token).first()
         
         if not access_token:
@@ -196,16 +207,18 @@ def upload_contractor_photo(token):
         if not access_token.is_valid():
             return jsonify({'error': 'Access link has expired or been revoked'}), 403
         
-        # Check if file is present
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
-        
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
         
-        # Get penetration ID from form data
+        # Validate file type
+        ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'heic'}
+        if not ('.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS):
+            return jsonify({'error': 'Invalid file type'}), 400
+        
         penetration_id = request.form.get('penetration_id')
         if not penetration_id:
             return jsonify({'error': 'Penetration ID required'}), 400
@@ -214,41 +227,36 @@ def upload_contractor_photo(token):
         if not penetration:
             return jsonify({'error': 'Penetration not found'}), 404
         
-        # Verify this contractor is assigned to this pen
         if penetration.contractor_id != access_token.contractor_id:
             return jsonify({'error': 'You are not assigned to this penetration'}), 403
         
-        # Generate unique filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = secure_filename(file.filename)
-        name, ext = os.path.splitext(filename)
-        unique_filename = f"{penetration.pen_id}_{timestamp}_{name}{ext}"
+        photo_type = request.form.get('photo_type', 'general')
+        caption = request.form.get('caption')
         
-        # Create upload directory
-        from flask import current_app
-        upload_folder = current_app.config['UPLOAD_FOLDER']
-        pen_folder = os.path.join(upload_folder, penetration.pen_id)
-        os.makedirs(pen_folder, exist_ok=True)
+        # Upload to Cloudinary
+        upload_result = cloudinary.uploader.upload(
+            file,
+            folder=f"penlog/pen_{penetration_id}",
+            resource_type="image",
+            transformation=[
+                {'width': 1920, 'height': 1080, 'crop': 'limit'},
+                {'quality': 'auto:good'}
+            ]
+        )
         
-        # Save file
-        filepath = os.path.join(pen_folder, unique_filename)
-        file.save(filepath)
-        
-        # Create photo record (no user_id)
+        # Create photo record
         photo = Photo(
             penetration_id=penetration_id,
-            user_id=None,  # No user for magic link access
-            filename=unique_filename,
-            filepath=filepath,
-            caption=request.form.get('caption'),
-            photo_type=request.form.get('photo_type', 'general')
+            user_id=None,
+            filename=secure_filename(file.filename),
+            filepath=upload_result['secure_url'],  # Cloudinary URL
+            cloudinary_public_id=upload_result['public_id'],
+            caption=caption,
+            photo_type=photo_type
         )
         
         db.session.add(photo)
-        
-        # Update last used timestamp
         access_token.last_used_at = datetime.utcnow()
-        
         db.session.commit()
         
         return jsonify({
@@ -258,4 +266,5 @@ def upload_contractor_photo(token):
         
     except Exception as e:
         db.session.rollback()
+        print(f"Photo upload error: {str(e)}")
         return jsonify({'error': str(e)}), 500
