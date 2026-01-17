@@ -148,8 +148,13 @@ def generate_penetration_excel(project, penetrations):
             status_cell.font = Font(color="991b1b", bold=True)
         
         ws_pens.cell(row=row_idx, column=9, value=pen.priority or '')
-        ws_pens.cell(row=row_idx, column=10, value=pen.opened_at.strftime('%Y-%m-%d %H:%M') if pen.opened_at else '')
-        ws_pens.cell(row=row_idx, column=11, value=pen.completed_at.strftime('%Y-%m-%d %H:%M') if pen.completed_at else '')
+        
+        # Format timestamps with UTC indicator for compliance
+        opened_str = pen.opened_at.strftime('%d %b %Y, %H:%M UTC') if pen.opened_at else ''
+        completed_str = pen.completed_at.strftime('%d %b %Y, %H:%M UTC') if pen.completed_at else ''
+        
+        ws_pens.cell(row=row_idx, column=10, value=opened_str)
+        ws_pens.cell(row=row_idx, column=11, value=completed_str)
         ws_pens.cell(row=row_idx, column=12, value=pen.notes or '')
         
         # Alternating row colors
