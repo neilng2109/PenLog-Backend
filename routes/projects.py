@@ -110,12 +110,12 @@ def create_project():
 @projects_bp.route('/<int:project_id>', methods=['PUT'])
 @jwt_required()
 def update_project(project_id):
-    """Update project (supervisor only)"""
+    """Update project (supervisor or admin only)"""
     try:
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         project = Project.query.get(project_id)
@@ -163,12 +163,12 @@ def update_project(project_id):
 @projects_bp.route('/<int:project_id>', methods=['DELETE'])
 @jwt_required()
 def delete_project(project_id):
-    """Delete project (supervisor only) - WARNING: Deletes all penetrations"""
+    """Delete project (supervisor or admin only) - WARNING: Deletes all penetrations"""
     try:
         user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
-        if current_user.role != 'supervisor':
+        if current_user.role not in ['supervisor', 'admin']:
             return jsonify({'error': 'Unauthorized'}), 403
         
         project = Project.query.get(project_id)
