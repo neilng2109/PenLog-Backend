@@ -17,7 +17,7 @@ def excel_options(project_id):
 @pdf_bp.route('/project/<int:project_id>/excel', methods=['GET'])
 @jwt_required()
 def export_excel(project_id):
-    """Export Excel with Cloudinary photo links"""
+    """Export Excel with penetration data only (no photos)"""
     try:
         project = Project.query.get(project_id)
         if not project:
@@ -28,14 +28,11 @@ def export_excel(project_id):
         if not penetrations:
             return jsonify({'error': 'No penetrations found for this project'}), 404
         
-        # Get upload folder from config (not used for Cloudinary but kept for backward compatibility)
-        upload_folder = current_app.config['UPLOAD_FOLDER']
-        
-        # Generate complete package (now returns Excel with Cloudinary links)
-        excel_buffer = generate_complete_package(project, penetrations, upload_folder)
+        # Generate Excel with just penetration data
+        excel_buffer = generate_penetration_excel(project, penetrations)
         
         # Create filename
-        filename = f"PenLog_{project.ship_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}_Complete.xlsx"
+        filename = f"PenLog_{project.ship_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.xlsx"
         
         return send_file(
             excel_buffer,
