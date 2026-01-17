@@ -171,34 +171,38 @@ def generate_magic_link():
         # Check if contractor already exists
         contractor = Contractor.query.filter_by(name=contractor_name).first()
         
-        # If contractor exists, check for existing token
-        if contractor:
-            existing_token = ContractorAccessToken.query.filter_by(
-                project_id=project_id,
-                contractor_id=contractor.id,
+        # If contractor doesn't exist, create it now
+        if not contractor:
+            contractor = Contractor(
+                name=contractor_name,
+                contact_person=contact_person,
+                contact_email=contact_email,
                 active=True
-            ).first()
-            
-            if existing_token:
-                # Build URL with contractor details
-                params = {
-                    'name': contractor.name,
-                    'contact': contractor.contact_person or '',
-                    'email': contractor.contact_email or ''
-                }
-                magic_url = f"{request.host_url}report/{existing_token.token}?{urlencode(params)}"
-                
-                return jsonify({
-                    'message': 'Access link already exists for this contractor',
-                    'link': magic_url,
-                    'token': existing_token.token,
-                    'contractor_id': contractor.id
-                }), 200
+            )
+            db.session.add(contractor)
+            db.session.flush()  # Get the contractor.id before creating token
         
-        # Generate token WITHOUT contractor_id (will be created on first access if needed)
+        # Check for existing token
+        existing_token = ContractorAccessToken.query.filter_by(
+            project_id=project_id,
+            contractor_id=contractor.id,
+            active=True
+        ).first()
+        
+        if existing_token:
+            magic_url = f"https://app.penlog.io/report/{existing_token.token}"
+            
+            return jsonify({
+                'message': 'Access link already exists for this contractor',
+                'link': magic_url,
+                'token': existing_token.token,
+                'contractor_id': contractor.id
+            }), 200
+        
+        # Generate new token with contractor_id
         token = ContractorAccessToken(
             project_id=project_id,
-            contractor_id=contractor.id if contractor else None,
+            contractor_id=contractor.id,  # Now always has a value
             token=ContractorAccessToken.generate_token(),
             active=True,
             expires_at=project.embarkation_date
@@ -207,15 +211,14 @@ def generate_magic_link():
         db.session.add(token)
         db.session.commit()
         
-        # Build URL with contractor details
+        # Build URL
         magic_url = f"https://app.penlog.io/report/{token.token}"
         
         return jsonify({
             'message': 'Access link generated successfully',
             'link': magic_url,
             'token': token.token,
-            'contractor_id': contractor.id if contractor else None,
-            'note': 'Contractor will be created automatically on first access' if not contractor else None
+            'contractor_id': contractor.id
         }), 201
         
     except Exception as e:
