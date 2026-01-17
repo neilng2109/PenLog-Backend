@@ -8,13 +8,13 @@ from datetime import datetime
 
 pdf_bp = Blueprint('pdf', __name__)
 
-# Excel export endpoint (matches frontend call to /api/excel/project/:id)
-@pdf_bp.route('/excel/project/<int:project_id>', methods=['OPTIONS'])
+# Excel export endpoint (matches frontend call to /api/pdf/project/:id/excel)
+@pdf_bp.route('/project/<int:project_id>/excel', methods=['OPTIONS'])
 def excel_options(project_id):
     """Handle OPTIONS preflight for Excel export"""
     return '', 204
 
-@pdf_bp.route('/excel/project/<int:project_id>', methods=['GET'])
+@pdf_bp.route('/project/<int:project_id>/excel', methods=['GET'])
 @jwt_required()
 def export_excel(project_id):
     """Export Excel with Cloudinary photo links"""
